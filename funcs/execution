@@ -102,25 +102,25 @@ function mysql_root_passwd
 	mysql_user_populate root
 	[ "$force" = on ] || ask_N_stop "are you sure you want change root password (mysld will be restarted)"
 
-	db_passwd=$(gen_urandom_passwd)
 
-	mkdir -pv /root/etc/mysql/localhost
+db_passwd=$(gen_urandom_passwd 10)
 
-	echo $db_passwd > /root/etc/mysql/localhost/passwd
-
-	find /root/etc -type d -exec chmod 700 {} \;
-	find /root/etc -type f -exec chmod 600 {} \;
-
-	invoke-rc.d mysql stop
+	echo "[client]
+user=root
+password=$db_passwd
+"	> /root/.my.cnf
+	
+	service mariadb stop
 
 	mysql_chroot_start --skip-grant-tables
 
-	echo "UPDATE user SET password=PASSWORD('$db_passwd') WHERE User='root' AND Host='localhost';" | mysql -uroot mysql
-	echo "delete from user where password=''" | mysql -uroot mysql
+	echo "UPDATE mysql.global_priv SET priv=json_set(priv, '$.plugin', 'mysql_native_password', '$.authentication_string', PASSWORD('$db_passwd')) WHERE User='root';" | mysql -uroot mysql
+	echo "DELETE FROM mysql.global_priv WHERE User='root' AND Host NOT IN ('localhost', '127.0.0.1', '::1');"| mysql -uroot mysql
+	echo "DELETE FROM mysql.global_priv WHERE User='';"| mysql -uroot mysql
 
+	she hulk
 	mysql_chroot_stop
-
-	invoke-rc.d mysql start
+	service mariadb start
 
 	return 0
 }
