@@ -110,19 +110,19 @@ user=root
 password=$db_passwd
 "	> /root/.my.cnf
 	
+	cat /root/.my.cnf
+
 	service mariadb stop
 
 	mysql_chroot_start --skip-grant-tables
 
-	echo "UPDATE mysql.global_priv SET priv=json_set(priv, 
-	'$.plugin', 'mysql_native_password', '$.authentication_string', PASSWORD('$db_passwd')) WHERE User='root';" | mysql -uroot mysql
+	echo "UPDATE mysql.global_priv SET priv=json_set(priv,'$.plugin', 'mysql_native_password', '$.authentication_string', PASSWORD('$db_passwd')) WHERE User='root';" | mysql -uroot mysql
 	echo "DELETE FROM mysql.global_priv WHERE User='root' AND Host NOT IN ('localhost', '127.0.0.1', '::1');"| mysql -uroot mysql
 	echo "DELETE FROM mysql.global_priv WHERE User='';"| mysql -uroot mysql
 
-	she hulk
 	mysql_chroot_stop
-	service mariadb start
-
+	service mariadb restart
+	cat /root/.my.cnf
 	return 0
 }
 
@@ -130,12 +130,17 @@ function mysql_chroot_start
 {
 	mysql_chroot_stop
 
-	mysqld --skip-networking --open-files-limit=512 $@ &
 
-	while [ ! -e /var/run/mysqld/mysqld.sock ]
-	do
-		sleep 1
-	done
+	# mysqld --skip-networking --open-files-limit=512 $@ &
+
+	systemctl set-environment MYSQLD_OPTS="--skip-grant-tables --skip-networking"
+	systemctl start mariadb
+
+	# while [ ! -e /var/run/mysqld/mysqld.sock ]
+	# do
+	# 	echo sleep 1
+	# 	sleep 1
+	# done
 
 	return 0
 }
@@ -143,6 +148,11 @@ function mysql_chroot_start
 function mysql_chroot_stop
 {
 	killall -9 mysqld && sleep 1 || true
+	killall -9 mariadb && sleep 1 || true
+
+	service mysql stop
+	service mariadb stop
+
 	rm -fv /var/run/mysqld/mysqld.sock
 
 	return 0
@@ -157,7 +167,7 @@ function mysql_user_passwd
 
 	[[ $db_user = root && ( -z "$db_host_from" || "$db_host_from" = "localhost" ) ]] && return 0
 
-	[ -z "$db_passwd" ] && db_passwd=$(gen_urandom_passwd)
+	[ -z "$db_passwd" ] && db_passwd=$(gen_urandom_passwd 10)
 
 	if [ -n "$(system_user_exists $db_user)" ]; then
 		d_home=$(system_user_home_dir $db_user)
