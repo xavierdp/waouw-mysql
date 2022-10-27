@@ -110,8 +110,6 @@ user=root
 password=$db_passwd
 "	> /root/.my.cnf
 	
-	cat /root/.my.cnf
-
 	service mariadb stop
 
 	mysql_chroot_start --skip-grant-tables
